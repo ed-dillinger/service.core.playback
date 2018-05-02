@@ -1,0 +1,12 @@
+<settings>
+	<category label="CommonCore Service">
+		<setting label="CommonCore Service" type="text" enable="false"/>
+		<setting label="Provides playback services" type="text" enable="false"/>
+		<setting type="sep"/>
+		<setting label="Go to http://www.tvaddons.co for support." type="lsep" />
+	</category>
+	<category label="Service">
+		<setting type="lsep" label="Playback"/>
+		<setting id="enable_playback_service" default="true" type="bool" label="Enable CommonCore Service"/>
+	</category>
+</settings>
