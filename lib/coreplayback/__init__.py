@@ -22,9 +22,17 @@ DB_TYPE = 'sqlite'
 DB_FILE = kodi.vfs.join("special://profile", 'addon_data/service.core.playback/API_CACHE/cached.db')
 class DBI(SQLiteDatabase):
 	def _initialize(self):
-		pass
+		self.connect()
+		schema_file = kodi.vfs.join("special://home", 'addons/service.core.playback/resources/database/schema.%s.sql' % self.db_type)
+		kodi.log(schema_file)
+		if self.run_script(schema_file, commit=False):
+			self.execute('DELETE FROM version', quiet=True)
+			self.execute('INSERT INTO version(db_version) VALUES(?)', [self.db_version], quiet=True)
+			self.commit()
+		self.disconnect()
 
 DB = DBI(DB_FILE, quiet=True, connect=True, version=1)
+
 
 def check_resume_point(media, trakt_id):
 	from commoncore.core import format_time
