@@ -16,22 +16,82 @@
 *'''
 
 from commoncore import kodi
-from commoncore.database import SQLiteDatabase
 
-DB_TYPE = 'sqlite'
-DB_FILE = kodi.vfs.join("special://profile", 'addon_data/service.core.playback/API_CACHE/cached.db')
-class DBI(SQLiteDatabase):
-	def _initialize(self):
-		self.connect()
-		schema_file = kodi.vfs.join("special://home", 'addons/service.core.playback/resources/database/schema.%s.sql' % self.db_type)
-		kodi.log(schema_file)
-		if self.run_script(schema_file, commit=False):
-			self.execute('DELETE FROM version', quiet=True)
-			self.execute('INSERT INTO version(db_version) VALUES(?)', [self.db_version], quiet=True)
+DB_TYPE = 'MySQL' if kodi.get_setting('database_type', 'service.core.playback') == '1' else 'SQLite'
+if DB_TYPE == 'MySQL':
+	from commoncore.database import MySQLDatabase as DATABASE_CLASS
+	class DBI(DATABASE_CLASS):
+		def _initialize(self):
+			self.connect()
+			statements = [
+				"""SET autocommit=0;""",
+				"""START TRANSACTION;""",
+				"""CREATE TABLE IF NOT EXISTS `version` (
+					`db_version` int(11) NOT NULL DEFAULT 1,
+					PRIMARY KEY(`db_version`));
+				""",
+				""" CREATE TABLE IF NOT EXISTS `playback_states` (
+					`watched_id` int(11) NOT NULL AUTO_INCREMENT,
+					`media` varchar(15) DEFAULT "show",
+					`trakt_id` INT(11),
+					`current` VARCHAR(15) DEFAULT NULL,
+					`total` VARCHAR(15) DEFAULT NULL,
+					`watched` TINYINT(1) DEFAULT 0,
+					`ids` LONGBLOB,
+					`metadata` LONGBLOB,
+					`ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					PRIMARY KEY(`watched_id`),
+					UNIQUE KEY `media_UNIQUE` (`media`,`trakt_id`));
+				""",
+				"""DELETE FROM version;""",
+				"""INSERT INTO version(db_version) VALUES({});""".format(self.db_version)
+			]
+			for SQL in statements:
+				self.execute(SQL, quiet=True)
 			self.commit()
-		self.disconnect()
+			self.disconnect()
+else:
+	from commoncore.database import SQLiteDatabase as DATABASE_CLASS
+	class DBI(DATABASE_CLASS):
+		def _initialize(self):
+			self.connect()
+			statements = [
+				""" CREATE TABLE IF NOT EXISTS "version" (
+					"db_version" INTEGER DEFAULT 1 UNIQUE,
+					PRIMARY KEY(db_version));
+				""",
+				""" CREATE TABLE IF NOT EXISTS "playback_states" (
+					"watched_id" INTEGER PRIMARY KEY AUTOINCREMENT,
+					"media" TEXT,
+					"trakt_id" TEXT,
+					"current" varchar(45) DEFAULT NULL,
+					"total" varchar(45) DEFAULT NULL,
+					"watched" INTEGER DEFAULT 0,
+					"ids" TEXT,
+					"metadata" TEXT,
+					"ts" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+					UNIQUE (media, trakt_id));
+				""",
+				"""DELETE FROM version;""",
+				"""INSERT INTO version(db_version) VALUES({})""".format(self.db_version)
+			]
+			for SQL in statements:
+				self.execute(SQL, quiet=True)
+			self.commit()
+			self.disconnect()
+	
+if DB_TYPE == 'MySQL':
+	host = kodi.get_setting('database_mysql_host', 'service.core.playback')
+	dbname = kodi.get_setting('database_mysql_name', 'service.core.playback')
+	username = kodi.get_setting('database_mysql_user', 'service.core.playback')
+	password = kodi.get_setting('database_mysql_pass', 'service.core.playback')
+	port = kodi.get_setting('database_mysql_port', 'service.core.playback')
+	DB=DBI(host, dbname, username, password, port, version=1, quiet=True, connect=True)
+else:
+	DB_FILE = kodi.vfs.translate_path(kodi.get_setting('database_sqlite_file', 'service.core.playback'))
+	DB = DBI(DB_FILE, quiet=True, connect=True, version=1)
+	
 
-DB = DBI(DB_FILE, quiet=True, connect=True, version=1)
 
 
 def check_resume_point(media, trakt_id):
@@ -44,6 +104,16 @@ def check_resume_point(media, trakt_id):
 		if ok:
 			return int(seconds)
 	return False
+
+def set_resume_point(media, trakt_id, current_time, total_time, percent, watched, metadata):
+	if DB.query("SELECT 1 FROM playback_states WHERE media=? AND trakt_id=?", [media, trakt_id]):
+		DB.execute("UPDATE playback_states SET current=? WHERE media=? AND trakt_id=?", [current_time, media, trakt_id])
+	else:
+		DB.execute("REPLACE INTO playback_states(media, trakt_id, current, total, ids, metadata) VALUES(?,?,?,?,?,?)", [media, trakt_id, current_time, total_time, kodi.json.dumps(metadata['ids']), kodi.json.dumps(metadata)])
+	if watched:
+		watched = 1 if percent > 94 else 0
+		DB.execute("UPDATE playback_states SET watched=? WHERE media=? AND trakt_id=?", [watched, media, trakt_id])
+	DB.commit()
 
 def in_progress(media, trakt_id):
 	if DB.query("SELECT 1 FROM playback_states WHERE media=? AND watched=0 AND ( current * 1.0 > 0 ) AND trakt_id=?", [media, trakt_id]):

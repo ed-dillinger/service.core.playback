@@ -9,4 +9,15 @@
 		<setting type="lsep" label="Playback"/>
 		<setting id="enable_playback_service" default="true" type="bool" label="Enable CommonCore Service"/>
 	</category>
+	<category label="Database">
+		<setting default="0" enabled="!eq(-1,false)" id="database_type" label="Database Type" type="enum" values="SQLite|MySQL" />
+		<setting label="SQLite" type="lsep" />
+		<setting default="special://profile/addon_data/service.core.playback/API_CACHE/cache.db" enable="eq(-2,0)" id="database_sqlite_file" label="Database File" subsetting="true" type="file" />
+		<setting label="MySQL" type="lsep" />
+		<setting default="" enable="eq(-4,1)" id="database_mysql_host" label="Host" subsetting="true" type="text" />
+		<setting default="coreplayback" enable="eq(-5,1)" id="database_mysql_name" label="Schema" subsetting="true" type="text" />
+		<setting default="" enable="eq(-6,1)" id="database_mysql_user" label="Username" subsetting="true" type="text" />
+		<setting default="" enable="eq(-7,1)" id="database_mysql_pass" label="Password" option="hidden" subsetting="true" type="text" />
+		<setting default="3306" enable="eq(-8,1)" id="database_mysql_port" label="Port" subsetting="true" type="number" />
+	</category>
 </settings>

@@ -32,28 +32,19 @@ class PlaybackService(xbmc.Player):
 	
 	def set_playback(self, watched=False):
 		try:
-				self.__percent = int(self.__current_time * 100 / self.__total_time )
+			self.__percent = int(self.__current_time * 100 / self.__total_time )
 		except:
 			self.__percent = 0
-
-		metadata = kodi.json.loads(kodi.get_property('core.infolabel', "service.core.playback"))
-		if 'episode' in metadata:
-			media = 'episode'
-		else:
-			media = 'movie'
-			
-		from commoncore.trakt import trakt as DB
-		if DB.query("SELECT 1 FROM playback_states WHERE media=? AND trakt_id=?", [media, metadata[media]['trakt_id']]):
-			DB.execute("UPDATE playback_states SET current=? WHERE media=? AND trakt_id=?", [self.__current_time, media, metadata[media]['trakt_id']])
-		else:
-			DB.execute("REPLACE INTO playback_states(media, trakt_id, current, total, ids, metadata) VALUES(?,?,?,?,?,?)", [media, metadata[media]['trakt_id'], self.__current_time, self.__total_time, kodi.json.dumps(metadata['ids']), kodi.json.dumps(metadata)])
-		if watched:
-			watched = 1 if self.__percent > 94 else 0
-			DB.execute("UPDATE playback_states SET watched=? WHERE media=? AND trakt_id=?", [watched, media, metadata[media]['trakt_id']])
-		DB.commit()
-		
-		del DB
-		
+		try:
+			metadata = kodi.json.loads(kodi.get_property('core.infolabel', "service.core.playback"))
+			if 'episode' in metadata:
+				media = 'episode'
+			else:
+				media = 'movie'
+			from lib.coreplayback import set_resume_point
+			set_resume_point(media, metadata[media]['trakt_id'], self.__current_time, self.__total_time, self.__percent, watched, metadata)
+			del set_resume_point
+		except: pass
 		
 	
 	def clear_playback_info(self):
@@ -90,9 +81,6 @@ class PlaybackService(xbmc.Player):
 		pass
 	
 	def onPlayBackSeek(self, time, seekOffset):
-		pass
-	
-	def onPlayBackSeekChapter(self):
 		pass
 	
 	def onPlayBackError(self):
